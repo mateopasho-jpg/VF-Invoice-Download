@@ -61,6 +61,12 @@ const SHOPIFY_ADMIN_API_VERSION = getEnv("SHOPIFY_ADMIN_API_VERSION", "2025-07")
 const DISABLE_AUTH = getEnv("DISABLE_AUTH") === "true";
 const OWNERSHIP_CHECK = !DISABLE_AUTH && !!SHOPIFY_ADMIN_TOKEN;
 
+// PREVIEW/DEMO: when set, /invoices serves the documents for THIS fixed order id
+// regardless of which order is being viewed. Use it to preview the real card
+// (with a working download) on a store whose orders aren't in Pathway — e.g. a
+// dev store. MUST be left empty in production.
+const DEMO_INVOICE_ORDER_ID = getEnv("DEMO_INVOICE_ORDER_ID");
+
 const PORT = Number(getEnv("PORT", "8080"));
 
 // Secret used to sign short-lived /download links. Reuse the Shopify app secret
@@ -244,9 +250,13 @@ async function handleInvoices(req: Request, url: URL): Promise<Response> {
   const parsed = parseOrderGid((url.searchParams.get("orderId") || "").trim());
   if (!parsed) return json({ ok: false, error: "invalid or missing orderId" }, 400);
 
-  // Determine which refunds to look up credit notes for.
+  // Which order to actually fetch from Pathway, and which refunds for credit notes.
+  let targetOrderId = parsed.numeric;
   let refundIds: string[] = [];
-  if (OWNERSHIP_CHECK) {
+  if (DEMO_INVOICE_ORDER_ID) {
+    // Preview mode: serve a known real invoice even on a store without Pathway data.
+    targetOrderId = DEMO_INVOICE_ORDER_ID;
+  } else if (OWNERSHIP_CHECK) {
     const customerGid = auth.claims.sub;
     if (!customerGid) return json({ ok: false, error: "not signed in" }, 403);
     let order: OrderInfo | null;
@@ -275,7 +285,7 @@ async function handleInvoices(req: Request, url: URL): Promise<Response> {
   const docs = await Promise.all(
     queries.map(async (q) => {
       try {
-        const doc = await fetchPathwayDoc(parsed.numeric, q.refundId);
+        const doc = await fetchPathwayDoc(targetOrderId, q.refundId);
         return doc ? { doc, refundId: q.refundId } : null;
       } catch (e) {
         console.warn(`[invoices] pathway fetch failed (refund=${q.refundId ?? "-"}): ${e}`);
@@ -286,7 +296,7 @@ async function handleInvoices(req: Request, url: URL): Promise<Response> {
 
   for (const entry of docs) {
     if (!entry) continue;
-    const token = await signDownloadToken(parsed.numeric, entry.refundId);
+    const token = await signDownloadToken(targetOrderId, entry.refundId);
     out.push({
       id: String(entry.doc.id),
       label: labelFor(entry.doc),

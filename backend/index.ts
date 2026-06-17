@@ -44,6 +44,12 @@ const PATHWAY_BASE_URL = getEnv(
   "https://billing.platform.pathway-solutions.de",
 ).replace(/\/+$/, "");
 const PATHWAY_SHOP_ID = getEnv("PATHWAY_SHOP_ID", "bfe811.myshopify.com");
+// On-demand customer portal (tier-2 fallback). Same page Pathway's order-email
+// links lead to; lets the customer fetch/see the invoice when the API has none.
+const PATHWAY_PORTAL_BASE = getEnv(
+  "PATHWAY_PORTAL_BASE",
+  "https://app.billing.pathway-solutions.de",
+).replace(/\/+$/, "");
 function pathwayApiKey(): string {
   return mustGetEnv("PATHWAY_API_KEY");
 }
@@ -302,6 +308,20 @@ async function handleInvoices(req: Request, url: URL): Promise<Response> {
       label: labelFor(entry.doc),
       type: entry.doc.type,
       downloadUrl: `${origin}/download?t=${encodeURIComponent(token)}`,
+    });
+  }
+
+  // Tier 2 fallback: no pre-created document via the API → give a button that
+  // opens Pathway's on-demand customer portal for this order. The portal serves
+  // the invoice if/when it exists, or shows its own "no invoice yet" page.
+  // (Tier 3 — message, no button — is simply an empty array, which only happens
+  // when there's no valid order id, handled by the 400 above.)
+  if (out.length === 0) {
+    out.push({
+      id: `portal-${targetOrderId}`,
+      label: "Rechnung",
+      type: "PORTAL",
+      downloadUrl: `${PATHWAY_PORTAL_BASE}/portal/SHOPIFY/${PATHWAY_SHOP_ID}/${targetOrderId}`,
     });
   }
 

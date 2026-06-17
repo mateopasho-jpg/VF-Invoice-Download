@@ -1,0 +1,11 @@
+{
+  "name": "pathway-invoice-proxy",
+  "type": "module",
+  "dependencies": {
+    "jose": "^5.9.6"
+  },
+  "scripts": {
+    "start": "bun index.ts",
+    "dev": "bun --watch index.ts"
+  }
+}

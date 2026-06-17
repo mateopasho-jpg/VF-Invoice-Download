@@ -21,7 +21,7 @@ import { useEffect, useState } from "react";
  * Set the backend URL below (or via the BACKEND_URL constant) to your deployed
  * proxy, e.g. https://pathway-invoice-proxy.up.railway.app
  */
-const BACKEND_URL = "https://REPLACE-WITH-YOUR-BACKEND-URL";
+const BACKEND_URL = "https://vf-invoice-download-production.up.railway.app";
 
 type Invoice = { id: string; label: string; type: string; downloadUrl: string };
 
